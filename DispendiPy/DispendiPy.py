@@ -16,10 +16,10 @@ from customtkinter.windows.widgets import CTkLabel, CTkOptionMenu
 import datetime
 from datetime import date
 import csv  # Import the csv module
-import requests  # Assicurati di avere installato la libreria requests
+import requests
 import sys
 import shutil
-#Comando per buildare: python -m PyInstaller --onefile DispendiPy.py -i icona.ico -n "Dispendi" -w
+#Comando per buildare: cd DispendiPY, python -m PyInstaller --onefile --hidden-import=requests DispendiPy.py -i icona.ico -n "Dispendi" -w
 def aggiungi():
     print("Workin'")
     if not loaded:
@@ -203,8 +203,8 @@ def calculateC():
 def windowdestroy():
     if Combo3.get() in atleti:
         index=atleti.index(Combo3.get())
-    
-    coefficienti[index]=media2000.get()+colpi2000.get()
+    coefficienti[index]=media2000+colpi2000
+    #coefficienti[index]=media2000.get()+colpi2000.get()
     CoeffTextLabel.configure(text=coefficienti[index])
     coeffwindow.destroy()
         
@@ -239,42 +239,63 @@ def segmented_button_callback(value):
 
 
 
-UPDATE_URL = "http://tuosito.com/DispendiPy_versione.txt"  # URL per controllare la versione
-DOWNLOAD_URL = "http://tuosito.com/DispendiPy_nuovo.exe"  # URL del nuovo file eseguibile
-CURRENT_VERSION = "1.0.0"  # Versione attuale del programma
+def show_splash_screen(update_info):
+    """Mostra uno splash screen con le informazioni sugli aggiornamenti."""
+    splash = Toplevel()
+    splash.title("Controllo Aggiornamenti")
+    splash.geometry("300x200")
+    splash.overrideredirect(True)  # Rimuove il bordo della finestra
+
+    Label(splash, text="Benvenuto in DispendiPy", font=("Arial", 14)).pack(pady=10)
+    Label(splash, text=update_info, wraplength=280, font=("Arial", 10)).pack(pady=10)
+
+    splash.after(10000, splash.destroy)  # Chiude lo splash screen dopo 3 secondi
 
 def check_for_update():
     try:
-        response = requests.get(UPDATE_URL)
+        # Recupera i dati della release più recente da GitHub
+        response = requests.get(GITHUB_API_URL.format(user="FilpperStone", repo="DispendiPy"))
         response.raise_for_status()
         
-        new_version = response.text.strip()
-        
-        if new_version > CURRENT_VERSION:
-            # Notifica all'utente che è disponibile un aggiornamento
-            update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({new_version}). Vuoi aggiornare?")
+        release_info = response.json()
+        latest_version = release_info["tag_name"]
+
+        if latest_version > CURRENT_VERSION:
+            # Mostra uno splash screen con le informazioni sugli aggiornamenti
+            update_info = f"Nuova versione disponibile: {latest_version}\nVersione corrente: {CURRENT_VERSION}"
+            show_splash_screen(update_info)
+
+            # Dopo lo splash screen, chiede all'utente se desidera aggiornare
+            update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({latest_version}). Vuoi aggiornare?")
             
             if update_prompt:
-                download_update(new_version)
+                asset_name = next((asset["name"] for asset in release_info["assets"] if asset["name"].endswith(".exe")), None)
+                
+                if asset_name:
+                    download_update(latest_version, asset_name)
+                else:
+                    messagebox.showerror("Errore", "Impossibile trovare il file di aggiornamento.")
         else:
             print("Nessun aggiornamento disponibile.")
-            
+    
     except requests.RequestException as e:
         print(f"Errore durante il controllo aggiornamenti: {e}")
 
-def download_update(new_version):
+def download_update(new_version, asset_name):
     try:
-        response = requests.get(DOWNLOAD_URL, stream=True)
-        response.raise_for_status()
+        # Costruisce l'URL per scaricare l'asset della release
+        download_url = GITHUB_DOWNLOAD_URL.format(user="FilpperStone", repo="DispendiPy", tag=new_version, asset_name=asset_name)
         
-        # Percorso dove salvare il file temporaneamente
+        # Percorso temporaneo per salvare il file scaricato
         temp_file = "DispendiPy_nuovo.exe"
         
-        # Scarica il nuovo file eseguibile
-        with open(temp_file, "wb") as f:
-            shutil.copyfileobj(response.raw, f)
+        # Effettua il download del file
+        with requests.get(download_url, stream=True) as response:
+            response.raise_for_status()
+            with open(temp_file, "wb") as f:
+                shutil.copyfileobj(response.raw, f)
         
-        # Sostituzione del file eseguibile attuale con il nuovo
+        # Rinomina l'eseguibile attuale e sostituisce con quello nuovo
         os.rename(sys.argv[0], f"{sys.argv[0]}.old")  # Rinominare il vecchio eseguibile
         shutil.move(temp_file, sys.argv[0])  # Sposta il nuovo eseguibile nel percorso originale
         
@@ -283,6 +304,7 @@ def download_update(new_version):
     
     except Exception as e:
         print(f"Errore durante il download dell'aggiornamento: {e}")
+
 
 root = CTk()
 root.title("Calcolo dei dispendi")
@@ -306,8 +328,12 @@ mainframe = CTkFrame(root)
 mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
 root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
-root.geometry("340x300")
+root.geometry("400x300")
 athlete_window=BooleanVar()
+GITHUB_API_URL = "https://api.github.com/repos/{user}/{repo}/releases/latest"
+GITHUB_DOWNLOAD_URL = "https://github.com/{user}/{repo}/releases/download/{tag}/{asset_name}"
+CURRENT_VERSION = "v0.5.0"  # La versione attuale del programma
+
 
 mainframe = customtkinter.CTkFrame(root)
 mainframe.grid(column=0, row=0, sticky=(customtkinter.N, customtkinter.W, customtkinter.E, customtkinter.S))
