@@ -332,7 +332,7 @@ root.geometry("400x300")
 athlete_window=BooleanVar()
 GITHUB_API_URL = "https://api.github.com/repos/{user}/{repo}/releases/latest"
 GITHUB_DOWNLOAD_URL = "https://github.com/{user}/{repo}/releases/download/{tag}/{asset_name}"
-CURRENT_VERSION = "v0.5.0"  # La versione attuale del programma
+CURRENT_VERSION = "v1.0.0"  # La versione attuale del programma
 
 
 mainframe = customtkinter.CTkFrame(root)
