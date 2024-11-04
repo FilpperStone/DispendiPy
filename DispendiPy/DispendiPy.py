@@ -276,6 +276,7 @@ def check_for_update():
                 else:
                     messagebox.showerror("Errore", "Impossibile trovare il file di aggiornamento.")
         else:
+            messagebox.showerror("Nessun aggiornamento disponibile.", "Procedere")
             print("Nessun aggiornamento disponibile.")
     
     except requests.RequestException as e:
