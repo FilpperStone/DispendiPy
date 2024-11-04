@@ -237,10 +237,7 @@ def segmented_button_callback(value):
     segmented_button.set(None)
 
 
-
-
 def show_splash_screen(update_info):
-    """Mostra uno splash screen con le informazioni sugli aggiornamenti."""
     splash = Toplevel()
     splash.title("Controllo Aggiornamenti")
     splash.geometry("300x200")
@@ -249,23 +246,21 @@ def show_splash_screen(update_info):
     Label(splash, text="Benvenuto in DispendiPy", font=("Arial", 14)).pack(pady=10)
     Label(splash, text=update_info, wraplength=280, font=("Arial", 10)).pack(pady=10)
 
-    splash.after(10000, splash.destroy)  # Chiude lo splash screen dopo 3 secondi
+    splash.after(10000, splash.destroy)  # Chiude lo splash screen dopo 10 secondi
 
 def check_for_update():
     try:
         # Recupera i dati della release più recente da GitHub
-        response = requests.get(GITHUB_API_URL.format(user="FilpperStone", repo="DispendiPy"))
+        response = requests.get(GITHUB_API_URL)
         response.raise_for_status()
         
         release_info = response.json()
         latest_version = release_info["tag_name"]
-
+        print(release_info["tag_name"])
         if latest_version > CURRENT_VERSION:
-            # Mostra uno splash screen con le informazioni sugli aggiornamenti
             update_info = f"Nuova versione disponibile: {latest_version}\nVersione corrente: {CURRENT_VERSION}"
             show_splash_screen(update_info)
 
-            # Dopo lo splash screen, chiede all'utente se desidera aggiornare
             update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({latest_version}). Vuoi aggiornare?")
             
             if update_prompt:
@@ -276,36 +271,32 @@ def check_for_update():
                 else:
                     messagebox.showerror("Errore", "Impossibile trovare il file di aggiornamento.")
         else:
-            messagebox.showerror("Nessun aggiornamento disponibile.", "Procedere")
             print("Nessun aggiornamento disponibile.")
     
     except requests.RequestException as e:
-        print(f"Errore durante il controllo aggiornamenti: {e}")
+        print(f"Errore durante il controllo degli aggiornamenti: {e}")
 
-def download_update(new_version, asset_name):
+def download_update(latest_version, asset_name):
     try:
-        # Costruisce l'URL per scaricare l'asset della release
-        download_url = GITHUB_DOWNLOAD_URL.format(user="FilpperStone", repo="DispendiPy", tag=new_version, asset_name=asset_name)
+        download_url = GITHUB_DOWNLOAD_URL.format(tag=latest_version, asset_name=asset_name)
+        response = requests.get(download_url, stream=True)
+        response.raise_for_status()
         
-        # Percorso temporaneo per salvare il file scaricato
-        temp_file = "DispendiPy_nuovo.exe"
+        update_file_path = os.path.join(os.path.dirname(sys.executable), asset_name)
         
-        # Effettua il download del file
-        with requests.get(download_url, stream=True) as response:
-            response.raise_for_status()
-            with open(temp_file, "wb") as f:
-                shutil.copyfileobj(response.raw, f)
+        with open(update_file_path, "wb") as update_file:
+            shutil.copyfileobj(response.raw, update_file)
         
-        # Rinomina l'eseguibile attuale e sostituisce con quello nuovo
-        os.rename(sys.argv[0], f"{sys.argv[0]}.old")  # Rinominare il vecchio eseguibile
-        shutil.move(temp_file, sys.argv[0])  # Sposta il nuovo eseguibile nel percorso originale
+        # Sostituzione dell'eseguibile corrente
+        current_executable = sys.executable
+        os.replace(update_file_path, current_executable)
         
-        messagebox.showinfo("Aggiornamento Completato", "Aggiornamento completato con successo! Riavvio dell'applicazione.")
-        os.execv(sys.argv[0], sys.argv)  # Riavvia il programma con la nuova versione
+        messagebox.showinfo("Aggiornamento completato", "L'aggiornamento è stato installato con successo. Riavvia l'applicazione.")
+        sys.exit(0)  # Chiude l'applicazione corrente
     
     except Exception as e:
         print(f"Errore durante il download dell'aggiornamento: {e}")
-
+        messagebox.showerror("Errore di aggiornamento", "Si è verificato un errore durante il download dell'aggiornamento.")
 
 root = CTk()
 root.title("Calcolo dei dispendi")
@@ -331,9 +322,9 @@ root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
 root.geometry("400x300")
 athlete_window=BooleanVar()
-GITHUB_API_URL = "https://api.github.com/repos/{user}/{repo}/releases/latest"
-GITHUB_DOWNLOAD_URL = "https://github.com/{user}/{repo}/releases/download/{tag}/{asset_name}"
-CURRENT_VERSION = "v1.0.0"  # La versione attuale del programma
+GITHUB_API_URL = "https://api.github.com/repos/FilpperStone/DispendiPy/releases/latest"
+GITHUB_DOWNLOAD_URL = "https://github.com/FilpperStone/DispendiPy/releases/download/{tag}/{asset_name}"
+CURRENT_VERSION = "V1.0.1"  # La versione attuale del programma
 
 
 mainframe = customtkinter.CTkFrame(root)
@@ -440,3 +431,72 @@ Combo3.bind("<<ComboboxSelected>>", update_coefficient)
 root.bind("<Return>", on_enter)
 
 root.mainloop()
+
+'''
+def show_splash_screen(update_info):
+    """Mostra uno splash screen con le informazioni sugli aggiornamenti."""
+    splash = Toplevel()
+    splash.title("Controllo Aggiornamenti")
+    splash.geometry("300x200")
+    splash.overrideredirect(True)  # Rimuove il bordo della finestra
+
+    Label(splash, text="Benvenuto in DispendiPy", font=("Arial", 14)).pack(pady=10)
+    Label(splash, text=update_info, wraplength=280, font=("Arial", 10)).pack(pady=10)
+
+    splash.after(10000, splash.destroy)  # Chiude lo splash screen dopo 3 secondi
+
+def check_for_update():
+    try:
+        # Recupera i dati della release più recente da GitHub
+        response = requests.get(GITHUB_API_URL.format(user="FilpperStone", repo="DispendiPy"))
+        response.raise_for_status()
+        
+        release_info = response.json()
+        latest_version = release_info["tag_name"]
+
+        if latest_version > CURRENT_VERSION:
+            # Mostra uno splash screen con le informazioni sugli aggiornamenti
+            update_info = f"Nuova versione disponibile: {latest_version}\nVersione corrente: {CURRENT_VERSION}"
+            show_splash_screen(update_info)
+
+            # Dopo lo splash screen, chiede all'utente se desidera aggiornare
+            update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({latest_version}). Vuoi aggiornare?")
+            
+            if update_prompt:
+                asset_name = next((asset["name"] for asset in release_info["assets"] if asset["name"].endswith(".exe")), None)
+                
+                if asset_name:
+                    download_update(latest_version, asset_name)
+                else:
+                    messagebox.showerror("Errore", "Impossibile trovare il file di aggiornamento.")
+        else:
+            messagebox.showerror("Nessun aggiornamento disponibile.", "Procedere")
+            print("Nessun aggiornamento disponibile.")
+    
+    except requests.RequestException as e:
+        print(f"Errore durante il controllo aggiornamenti: {e}")
+
+def download_update(new_version, asset_name):
+    try:
+        # Costruisce l'URL per scaricare l'asset della release
+        download_url = GITHUB_DOWNLOAD_URL.format(user="FilpperStone", repo="DispendiPy", tag=new_version, asset_name=asset_name)
+        
+        # Percorso temporaneo per salvare il file scaricato
+        temp_file = "DispendiPy_nuovo.exe"
+        
+        # Effettua il download del file
+        with requests.get(download_url, stream=True) as response:
+            response.raise_for_status()
+            with open(temp_file, "wb") as f:
+                shutil.copyfileobj(response.raw, f)
+        
+        # Rinomina l'eseguibile attuale e sostituisce con quello nuovo
+        os.rename(sys.argv[0], f"{sys.argv[0]}.old")  # Rinominare il vecchio eseguibile
+        shutil.move(temp_file, sys.argv[0])  # Sposta il nuovo eseguibile nel percorso originale
+        
+        messagebox.showinfo("Aggiornamento Completato", "Aggiornamento completato con successo! Riavvio dell'applicazione.")
+        os.execv(sys.argv[0], sys.argv)  # Riavvia il programma con la nuova versione
+    
+    except Exception as e:
+        print(f"Errore durante il download dell'aggiornamento: {e}")
+'''
