@@ -1,4 +1,6 @@
 ﻿from cgitb import text
+from shlex import join
+from sqlite3 import Row
 import tkinter
 from tkinter import ttk
 from tkinter import *
@@ -8,7 +10,7 @@ import random
 import os
 from tkinter import messagebox
 from tkinter import simpledialog, Toplevel
-from turtle import distance
+from turtle import distance, update
 import customtkinter 
 from customtkinter import CTkCheckBox, CTkSwitch
 from customtkinter import *
@@ -19,11 +21,16 @@ import csv  # Import the csv module
 import requests
 import sys
 import shutil
+import ctypes
+import traceback
+import subprocess
+import time
+
 #Comando per buildare: cd DispendiPY, python -m PyInstaller --onefile --hidden-import=requests DispendiPy.py -i icona.ico -n "Dispendi" -w
 def aggiungi():
     print("Workin'")
     if not loaded:
-        folder_name = filedialog.askdirectory(initialdir = os.path , title = "Seleziona la cartella")
+        folderwindow()
 
         direzioni_file = os.path.join(folder_name, "atleti.txt")
         atleta=athletewindow()
@@ -48,13 +55,12 @@ def aggiungi():
     
 
 def folderwindow():
-    global folder_name_var
+    global folder_name, loaded
 
     folder_window_open=True
     # Crea una finestra per inserire il nome della cartella
-    folder_window = CTkInputDialog(title="Nome della Cartella", text="Cartella:")
-    folder_window.focus()
-    folder_name=folder_window.get_input()
+    folder_name = filedialog.askdirectory(initialdir = os.path , title = "Seleziona la cartella")
+    loaded = True
 
 def athletewindow():
     global athletewindow_open
@@ -68,7 +74,7 @@ def athletewindow():
 def load():
     global folder_name, loaded, atleti, coefficienti  # Assuming atleti and coefficienti are global lists
 
-    folder_name = filedialog.askdirectory(initialdir=os.path, title="Seleziona la cartella")
+    folderwindow()
     atleta_file = os.path.join(folder_name, "atleti.txt")
 
     if os.path.exists(atleta_file):
@@ -84,7 +90,7 @@ def load():
         update_combobox()  # Assuming this function updates the comboboxes
         Combo2.configure(state='readonly')
         Combo3.configure(state='readonly')
-        loaded = True
+        
 
     else:
         messagebox.showerror("Errore", "La cartella o i file non esistono.")
@@ -138,7 +144,7 @@ def save():
     global dispendio, distanza, folder_name_var, Combo1, Combo2
 
     # Ottieni i valori delle variabili StringVar
-    folder_name = folder_name_var.get().strip()
+
     atleta_var = Combo2.get().strip()
     
     # Rimuovi i caratteri non validi dal nome del file
@@ -147,8 +153,9 @@ def save():
     print("Creazione del file...")
 
     # Costruisci il percorso del file
-    file_path=filedialog.askdirectory(initialdir = os.path , title = "Seleziona la cartella")
-    file_path = os.path.join(file_path, atleta_var + ".txt")
+    if not loaded:
+        folderwindow()
+    file_path = os.path.join(folder_name, atleta_var + ".txt")
 
     try:
         # Scrivi nel file
@@ -221,6 +228,58 @@ def saveathletes():
         for i in atleti:
             f.write(i)
 
+def settings():
+    global loaded
+    settings_window = CTkToplevel(root)
+    settings_window.title("Impostazioni")
+    settings_window.lift()  # Porta la finestra in primo piano
+    settings_window.focus_force()  # Forza il focus sulla finestra
+    
+    # Crea le tab nel tabview
+    settingstabs = customtkinter.CTkTabview(settings_window)
+    settingstabs.grid(column=1, row=1, sticky="WENS")
+    infotab=settingstabs.add("Informazioni")
+    foldertab=settingstabs.add("Cartelle")
+    resettab=settingstabs.add("Reset")
+    feedbacktab=settingstabs.add("Feedback")
+    settingstabs.set("Informazioni")
+    
+    # Crea un frame per contenere i check_button e versionLabel
+    check_frame = customtkinter.CTkFrame(infotab)
+    check_frame.grid(column=1, row=1, sticky="WENS")
+    
+    # Aggiungi elementi al frame
+    versionLabel = customtkinter.CTkLabel(check_frame, text="Versione attuale: " + CURRENT_VERSION)
+    versionLabel.grid(column=0, row=0, sticky="W", padx=5, pady=5)
+    
+    check_button = customtkinter.CTkButton(check_frame, text="Controllo Aggiornamenti", command=check_for_update)
+    check_button.grid(column=0, row=1, sticky="W", padx=5, pady=5)
+    
+    if update_available:  # e.g., if CURRENT_VERSION < latest_version
+        updateLabel = customtkinter.CTkLabel(infotab, text="Aggiornamento disponibile: " + latest_version)
+        updateLabel.grid(column=0, row=2, sticky="W", padx=5, pady=5)
+        
+        update_button = customtkinter.CTkButton(infotab, text="Aggiorna", command=download_update)
+        update_button.grid(column=0, row=3, sticky="W", padx=5, pady=5)
+        
+    folder_label=CTkLabel(foldertab, text=" Selezionare la cartella")
+    folder_label.grid(column=0, row=4, sticky=(W, E))
+    if loaded:
+        print(loaded)
+        folder_label.configure(text=folder_name)
+    folder_button=CTkButton(foldertab, text="Sfoglia", command=lambda: browse(folder_label))
+    folder_button.grid(column=1, row=4, sticky="ENS")
+
+    
+    # Assicura che la finestra abbia il focus dopo l'inizializzazione
+    settings_window.after(10, lambda: settings_window.focus())
+
+
+def browse(label):
+    print("Here we are")
+    folderwindow()
+    label.configure(text=folder_name)
+    
 def segmented_button_callback(value):
     if value=="Salva":
         save()
@@ -230,25 +289,15 @@ def segmented_button_callback(value):
        aggiungi()
     elif value=="Cancella":
         delete()
-    elif value=="Reset": 
-        rollback()
+    elif value=="Impostazioni":
+        settings()
     elif value=="Chiudi": 
         root.destroy()
     segmented_button.set(None)
 
 
-def show_splash_screen(update_info):
-    splash = Toplevel()
-    splash.title("Controllo Aggiornamenti")
-    splash.geometry("300x200")
-    splash.overrideredirect(True)  # Rimuove il bordo della finestra
-
-    Label(splash, text="Benvenuto in DispendiPy", font=("Arial", 14)).pack(pady=10)
-    Label(splash, text=update_info, wraplength=280, font=("Arial", 10)).pack(pady=10)
-
-    splash.after(10000, splash.destroy)  # Chiude lo splash screen dopo 10 secondi
-
 def check_for_update():
+    global update_info, latest_version, update_available
     try:
         # Recupera i dati della release più recente da GitHub
         response = requests.get(GITHUB_API_URL)
@@ -259,47 +308,119 @@ def check_for_update():
         print(release_info["tag_name"])
         if latest_version > CURRENT_VERSION:
             update_info = f"Nuova versione disponibile: {latest_version}\nVersione corrente: {CURRENT_VERSION}"
-            show_splash_screen(update_info)
-
+            update_available=True
             update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({latest_version}). Vuoi aggiornare?")
             
             if update_prompt:
                 asset_name = next((asset["name"] for asset in release_info["assets"] if asset["name"].endswith(".exe")), None)
                 
                 if asset_name:
-                    download_update(latest_version, asset_name)
+                    file_path=os.path.join(working_dir, "update.txt")
+                    with open(file_path, "a") as f:
+                        f.write(f"{latest_version}\n")
+                        f.write(f"{asset_name}\n")
+                    subprocess.Popen(updater, shell=False)
+                    #download_update(latest_version, asset_name)
+                    #update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({latest_version}). Vuoi aggiornare?")
+                    sys.exit(0)
                 else:
                     messagebox.showerror("Errore", "Impossibile trovare il file di aggiornamento.")
         else:
             print("Nessun aggiornamento disponibile.")
+            update_available=False
+            #if os.path.exists(new_executable):
+             #   time.sleep(3)
+                #os.remove(old_executable)
     
     except requests.RequestException as e:
         print(f"Errore durante il controllo degli aggiornamenti: {e}")
 
+GITHUB_DOWNLOAD_URL = "https://github.com/your_repo/releases/download/{tag}/{asset_name}"
+
 def download_update(latest_version, asset_name):
     try:
+        # URL per il download
         download_url = GITHUB_DOWNLOAD_URL.format(tag=latest_version, asset_name=asset_name)
         response = requests.get(download_url, stream=True)
         response.raise_for_status()
-        
-        update_file_path = os.path.join(os.path.dirname(sys.executable), asset_name)
-        
-        with open(update_file_path, "wb") as update_file:
-            shutil.copyfileobj(response.raw, update_file)
-        
-        # Sostituzione dell'eseguibile corrente
-        current_executable = sys.executable
-        os.replace(update_file_path, current_executable)
-        
-        messagebox.showinfo("Aggiornamento completato", "L'aggiornamento è stato installato con successo. Riavvia l'applicazione.")
-        sys.exit(0)  # Chiude l'applicazione corrente
-    
-    except Exception as e:
-        print(f"Errore durante il download dell'aggiornamento: {e}")
-        messagebox.showerror("Errore di aggiornamento", "Si è verificato un errore durante il download dell'aggiornamento.")
 
+
+
+        # Scarica il nuovo eseguibile in un file temporaneo
+        with open(temp_executable, "wb") as temp_file:
+            shutil.copyfileobj(response.raw, temp_file)
+
+        # Rinomina l'eseguibile corrente
+        if os.path.exists(new_executable):
+            os.rename(new_executable, old_executable)
+
+        # Sposta il nuovo file nella posizione corretta
+        shutil.move(temp_executable, new_executable)
+        
+        #executable_dir=os.path.join(os.path.dirname(new_executable), new_executable)
+        #os.chdir(updaterdir)
+        #print(os.getcwd())
+        #os.system(f"python {updater}")
+        os.system(updater)
+      
+        #process.wait()
+        # Notifica l'utente del successo
+        #messagebox.showinfo("Aggiornamento completato", "L'aggiornamento è stato installato con successo. Riavvia l'applicazione.")
+
+        # Chiudi l'applicazione
+        #sys.exit(0)
+
+    except Exception as e:
+        messagebox.showerror("Errore di aggiornamento", f"Si è verificato un errore durante l'aggiornamento: {e}")
+
+def mostra_permessi(path):
+    print(f"Permessi per: {path}")
+    print(f"    Lettura: {'Sì' if os.access(path, os.R_OK) else 'No'}")
+    print(f"    Scrittura: {'Sì' if os.access(path, os.W_OK) else 'No'}")
+    print(f"    Esecuzione: {'Sì' if os.access(path, os.X_OK) else 'No'}")
+
+def mostra_permessi_avanzati(path):
+    print(f"Permessi avanzati per {path}: {oct(os.stat(path).st_mode)[-3:]}")
+    print(f"Scrittura: {'Sì' if os.access(path, os.W_OK) else 'No'}")
+
+def test_permessi_scrittura(path):
+    test_file = os.path.join(path, "test_write_permissions.txt")
+    try:
+        with open(test_file, "w") as f:
+            f.write("Test di scrittura riuscito.")
+        print(f"Scrittura riuscita: {test_file}")
+        os.remove(test_file)  # Rimuove il file di test
+    except Exception as e:
+        print(f"Errore di scrittura: {e}")
+
+def check_admin_permissions():
+    """Controlla se il programma è in esecuzione come amministratore"""
+    try:
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        is_admin = False
+    return is_admin
+
+def restart_as_admin():
+    """Riavvia il programma come amministratore se non ha i permessi elevati"""
+    if not check_admin_permissions():
+        print("Questo programma richiede i permessi di amministratore per funzionare correttamente.")
+        try:
+            # Riavvia il programma come amministratore
+            ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, " ".join(sys.argv), None, 1
+            )
+            sys.exit()  # Termina l'istanza corrente
+        except Exception as e:
+            print(f"Errore nell'elevazione dei permessi: {e}")
+            sys.exit(1)  # Termina il programma in caso di errore
+
+
+
+
+CURRENT_VERSION = "V1.1.0"  # La versione attuale del programma
 root = CTk()
-root.title("Calcolo dei dispendi")
+root.title("Calcolo dei dispendi "+CURRENT_VERSION)
 root.resizable(True, True)
 atleta=StringVar()
 selectedA=[]
@@ -315,17 +436,36 @@ turns=BooleanVar(value=False)
 loaded=BooleanVar(value=False)
 folder_window_open=BooleanVar()
 turn_window_open=BooleanVar()
-folder_name_var=StringVar()
+folder_name=StringVar()
 mainframe = CTkFrame(root)
 mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
 root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
 root.geometry("400x300")
 athlete_window=BooleanVar()
+update_available=BooleanVar(value=False)
 GITHUB_API_URL = "https://api.github.com/repos/FilpperStone/DispendiPy/releases/latest"
 GITHUB_DOWNLOAD_URL = "https://github.com/FilpperStone/DispendiPy/releases/download/{tag}/{asset_name}"
-CURRENT_VERSION = "V1.0.1"  # La versione attuale del programma
 
+# Percorsi
+current_executable = sys.executable
+working_dir = os.path.dirname(current_executable)
+temp_executable = os.path.join(working_dir, "temp_new_Dispendi.exe")
+old_executable = os.path.join(working_dir, "Dispendi-old.exe")
+new_executable = str(current_executable)
+updater = os.path.join(os.path.dirname(current_executable), "Updater.exe")
+ 
+#restart_as_admin()
+
+# Controlla i permessi sulla directory corrente
+#mostra_permessi(os.getcwd())
+
+# Controlla i permessi sulla cartella Downloads
+#mostra_permessi(os.path.expanduser(os.getcwd()))
+
+#mostra_permessi_avanzati(os.getcwd())
+
+#test_permessi_scrittura(os.path.expanduser(os.getcwd()))
 
 mainframe = customtkinter.CTkFrame(root)
 mainframe.grid(column=0, row=0, sticky=(customtkinter.N, customtkinter.W, customtkinter.E, customtkinter.S))
@@ -377,7 +517,7 @@ tempofed_entry=CTkEntry(dispetab, width=7, textvariable=tempofed)
 tempofed_entry.grid(column=2, row=5, sticky=(W, E))
 segmented_button = customtkinter.CTkSegmentedButton(
     mainframe,
-    values=["Salva", "Carica", "aggiungi", "Cancella", "Reset", "Chiudi"],
+    values=["Salva", "Carica", "aggiungi", "Cancella", "Impostazioni", "Chiudi"],
     command=segmented_button_callback
 )
 segmented_button.grid(column=1, row=0, columnspan=6, sticky=(customtkinter.W, customtkinter.E), padx=5, pady=5)
@@ -391,7 +531,7 @@ CoeffLabel = CTkFrame(coefftab)
 CoeffLabel.grid(column=2, row=2, sticky=(customtkinter.W, customtkinter.E, customtkinter.S, customtkinter.N))
 
 # Label all'interno del frame per mostrare il valore del coefficiente
-CoeffTextLabel = CTkLabel(CoeffLabel, text="")
+CoeffTextLabel = CTkLabel(CoeffLabel, text=" ")
 CoeffTextLabel.grid(column=0, row=0, sticky=W)
 
 coeffbutton=CTkButton(coefftab, text="Calcola", command=calculateC)
@@ -418,12 +558,16 @@ def on_enter(event):
 # Funzione per aggiornare il coefficiente in base alla selezione della Combo3
 def update_coefficient(event):
     # Ottieni l'indice dell'atleta selezionato
-    print("Workin")
-    if Combo3.get() in atleti:
-        selected_index=atleti.index(Combo3.get())
+    atleta_selezionato = Combo3.get()
     
-    if selected_index != -1:  # Verifica che ci sia una selezione valida
+    if atleta_selezionato in atleti:
+        selected_index = atleti.index(atleta_selezionato)
+        
+        # Aggiorna il testo di CoeffTextLabel con il valore del coefficiente corrispondente
         CoeffTextLabel.configure(text=coefficienti[selected_index])
+    else:
+        # Pulisce il testo se non è stato selezionato un atleta valido
+        CoeffTextLabel.configure(text="")
 
 # Imposta il callback sulla Combo3 per l'evento di selezione
 Combo3.bind("<<ComboboxSelected>>", update_coefficient)
@@ -432,71 +576,3 @@ root.bind("<Return>", on_enter)
 
 root.mainloop()
 
-'''
-def show_splash_screen(update_info):
-    """Mostra uno splash screen con le informazioni sugli aggiornamenti."""
-    splash = Toplevel()
-    splash.title("Controllo Aggiornamenti")
-    splash.geometry("300x200")
-    splash.overrideredirect(True)  # Rimuove il bordo della finestra
-
-    Label(splash, text="Benvenuto in DispendiPy", font=("Arial", 14)).pack(pady=10)
-    Label(splash, text=update_info, wraplength=280, font=("Arial", 10)).pack(pady=10)
-
-    splash.after(10000, splash.destroy)  # Chiude lo splash screen dopo 3 secondi
-
-def check_for_update():
-    try:
-        # Recupera i dati della release più recente da GitHub
-        response = requests.get(GITHUB_API_URL.format(user="FilpperStone", repo="DispendiPy"))
-        response.raise_for_status()
-        
-        release_info = response.json()
-        latest_version = release_info["tag_name"]
-
-        if latest_version > CURRENT_VERSION:
-            # Mostra uno splash screen con le informazioni sugli aggiornamenti
-            update_info = f"Nuova versione disponibile: {latest_version}\nVersione corrente: {CURRENT_VERSION}"
-            show_splash_screen(update_info)
-
-            # Dopo lo splash screen, chiede all'utente se desidera aggiornare
-            update_prompt = messagebox.askyesno("Aggiornamento Disponibile", f"È disponibile una nuova versione ({latest_version}). Vuoi aggiornare?")
-            
-            if update_prompt:
-                asset_name = next((asset["name"] for asset in release_info["assets"] if asset["name"].endswith(".exe")), None)
-                
-                if asset_name:
-                    download_update(latest_version, asset_name)
-                else:
-                    messagebox.showerror("Errore", "Impossibile trovare il file di aggiornamento.")
-        else:
-            messagebox.showerror("Nessun aggiornamento disponibile.", "Procedere")
-            print("Nessun aggiornamento disponibile.")
-    
-    except requests.RequestException as e:
-        print(f"Errore durante il controllo aggiornamenti: {e}")
-
-def download_update(new_version, asset_name):
-    try:
-        # Costruisce l'URL per scaricare l'asset della release
-        download_url = GITHUB_DOWNLOAD_URL.format(user="FilpperStone", repo="DispendiPy", tag=new_version, asset_name=asset_name)
-        
-        # Percorso temporaneo per salvare il file scaricato
-        temp_file = "DispendiPy_nuovo.exe"
-        
-        # Effettua il download del file
-        with requests.get(download_url, stream=True) as response:
-            response.raise_for_status()
-            with open(temp_file, "wb") as f:
-                shutil.copyfileobj(response.raw, f)
-        
-        # Rinomina l'eseguibile attuale e sostituisce con quello nuovo
-        os.rename(sys.argv[0], f"{sys.argv[0]}.old")  # Rinominare il vecchio eseguibile
-        shutil.move(temp_file, sys.argv[0])  # Sposta il nuovo eseguibile nel percorso originale
-        
-        messagebox.showinfo("Aggiornamento Completato", "Aggiornamento completato con successo! Riavvio dell'applicazione.")
-        os.execv(sys.argv[0], sys.argv)  # Riavvia il programma con la nuova versione
-    
-    except Exception as e:
-        print(f"Errore durante il download dell'aggiornamento: {e}")
-'''

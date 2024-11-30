@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>47b82f3b-28ed-4787-8b06-3fbc2971975e</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>DispendiPy.py</StartupFile>
+    <StartupFile>Updater.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,6 +22,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="DispendiPy.py" />
+    <Compile Include="Updater.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
