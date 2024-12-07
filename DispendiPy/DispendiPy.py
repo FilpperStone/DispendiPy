@@ -498,7 +498,7 @@ Combo1.configure(values=imbarcazioni)
 Combo2 = CTkComboBox(dispetab, state='disabled')  # Set combobox to read-only
 Combo2.grid(column=2, row=1, sticky=(W, E))
 
-Combo3 = CTkComboBox(coefftab, state='disabled')  # Set combobox to read-only
+Combo3 = CTkComboBox(coefftab, state='disabled', command=update_coefficient)  # Set combobox to read-only
 Combo3.grid(column=2, row=1, sticky=(W, E))
 
 CTkLabel(dispetab, text="Distanza:").grid(column=1, row=3, sticky=W)
@@ -556,18 +556,18 @@ def on_enter(event):
     
 
 # Funzione per aggiornare il coefficiente in base alla selezione della Combo3
-def update_coefficient(event):
+def update_coefficient(value):
     # Ottieni l'indice dell'atleta selezionato
-    atleta_selezionato = Combo3.get()
-    
-    if atleta_selezionato in atleti:
-        selected_index = atleti.index(atleta_selezionato)
+    #atleta_selezionato = Combo3.get()
+    CoeffTextLabel.configure(text=value)
+    #if atleta_selezionato in atleti:
+        #selected_index = atleti.index(atleta_selezionato)
         
         # Aggiorna il testo di CoeffTextLabel con il valore del coefficiente corrispondente
-        CoeffTextLabel.configure(text=coefficienti[selected_index])
-    else:
+        #CoeffTextLabel.configure(text=coefficienti[selected_index])
+    #else:
         # Pulisce il testo se non è stato selezionato un atleta valido
-        CoeffTextLabel.configure(text="")
+        #CoeffTextLabel.configure(text="")
 
 # Imposta il callback sulla Combo3 per l'evento di selezione
 Combo3.bind("<<ComboboxSelected>>", update_coefficient)
